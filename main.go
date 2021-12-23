@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/b4rsch/Kickerplatform/handler"
+	"fmt"
 	"github.com/b4rsch/Kickerplatform/repository"
 	"github.com/gin-gonic/gin"
 	"log"
@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-func setupRouter(repository repository.Repo) *gin.Engine {
+func setupRouter(repo repository.Repo) *gin.Engine {
 	r := gin.Default()
 
 	r.POST("/user/:username/:locationId", func(c *gin.Context) {
@@ -19,7 +19,7 @@ func setupRouter(repository repository.Repo) *gin.Engine {
 			c.JSON(http.StatusBadRequest, "{}")
 		}
 		locationId := int(locationIdFromParam)
-		err = repository.CreateUser(username, locationId)
+		err = repo.CreateUser(username, locationId)
 		if err != nil {
 			log.Print(err)
 			c.JSON(http.StatusInternalServerError, `{"error":true,"message":"could not create user"`)
@@ -30,13 +30,20 @@ func setupRouter(repository repository.Repo) *gin.Engine {
 
 	r.POST("/match/new", func(c *gin.Context) {
 
-		payload := handler.MatchDetails{}
+		payload := repository.MatchDetails{}
 		if err := c.BindJSON(&payload); err != nil {
 			log.Println(err)
 			c.JSON(http.StatusBadRequest, `{"error":true,"message":"bad request"`)
 			return
 		}
+		matchId, err := repo.CreateNewMatch(payload)
+		if err != nil {
+			log.Println(err)
+			c.JSON(http.StatusInternalServerError, `{"error":true,"message":"could not create match"`)
+			return
+		}
 
+		c.JSON(http.StatusCreated, fmt.Sprintf(`{"matchId": %v}`, matchId))
 	})
 
 	return r
