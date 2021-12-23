@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/go/Dockerfile
+    ports:
+      - "8080:8080"
+  db:
+    build:
+      dockerfile: docker/db/Dockerfile
+    ports:
+      - "5432:5432"
+    volumes:
+      - datavolume:/var/lib/postgresql/data
+volumes:
+  datavolume:
