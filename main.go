@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/b4rsch/Kickerplatform/handler"
 	"github.com/b4rsch/Kickerplatform/repository"
 	"github.com/gin-gonic/gin"
 	"log"
@@ -28,6 +29,7 @@ func setupRouter(repo repository.Repo) *gin.Engine {
 		c.JSON(http.StatusCreated, "{}")
 	})
 
+	// TODO create handler for mode (if mode doesn't exist yet, create it. mode value must be odd)
 	r.POST("/match/new", func(c *gin.Context) {
 
 		payload := repository.MatchDetails{}
@@ -45,7 +47,32 @@ func setupRouter(repo repository.Repo) *gin.Engine {
 
 		c.JSON(http.StatusCreated, fmt.Sprintf(`{"matchId": %v}`, matchId))
 	})
-
+	r.POST("/game/:matchId", func(c *gin.Context) {
+		matchId := c.Param("matchId")
+		payload := repository.GameDetails{}
+		if err := c.BindJSON(&payload); err != nil {
+			log.Println(err)
+			c.JSON(http.StatusBadRequest, `{"error":true,"message":"bad request"}`)
+			return
+		}
+		//TODO replace with game handler to check, if max games are reached
+		if err := repo.WriteGameOfMatch(matchId, payload); err != nil {
+			log.Println(err)
+			c.JSON(http.StatusInternalServerError, `{"error": true,"message":"could not write game to db"}`)
+			return
+		}
+		c.JSON(http.StatusCreated, "{}")
+	})
+	r.GET("/user/:username", func(c *gin.Context){
+		username := c.Param("username")
+		result, err := handler.UserStatisticsFor(username, repo)
+		if err != nil {
+			log.Println(err)
+			c.JSON(http.StatusInternalServerError, `{"error": "could not get statistics for player"}`)
+			return
+		}
+		c.JSON(http.StatusOK, result)
+	})
 	return r
 }
 

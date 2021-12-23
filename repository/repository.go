@@ -18,6 +18,8 @@ const (
 type Repo interface {
 	CreateUser(username string, locationId int) error
 	CreateNewMatch(matchDetails MatchDetails) (int, error)
+	WriteGameOfMatch(matchId string, payload GameDetails) error
+	GetPlayedMatchesFor(username string)(int, error)
 }
 
 type MatchDetails struct {
@@ -25,7 +27,7 @@ type MatchDetails struct {
 	Team2      Team `json:"team2"`
 	LocationID int  `json:"locationId"`
 	Date       string
-	ModeId     int `json:"modeId"`
+	BestOf     int `json:"best_of"`
 }
 
 type Team struct {
@@ -33,8 +35,31 @@ type Team struct {
 	Defender string `json:"defender"`
 }
 
+type GameDetails struct {
+	Team1 Team `json:"team1"`
+	Team2 Team `json:"team2"`
+	ScoreTeam1 int `json:"score_team_1"`
+	ScoreTeam2 int `json:"score_team_2"`
+}
+
 type Repository struct {
 	db *sql.DB
+}
+
+func (r *Repository) GetPlayedMatchesFor(username string) (int, error) {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Commit()
+
+	rows, _ := tx.Query("SELECT COUNT(*) FROM matches WHERE team_1_player_1 = $1 or team_1_player_2 =  $1")
+	var result int
+	for rows.Next() {
+		_ = rows.Scan(&result)
+	}
+
+	return result, nil
 }
 
 func (r *Repository) CreateNewMatch(matchDetails MatchDetails) (int, error) {
@@ -43,12 +68,13 @@ func (r *Repository) CreateNewMatch(matchDetails MatchDetails) (int, error) {
 		return 0, err
 	}
 	defer tx.Commit()
-	stmt := `INSERT INTO matches(date, locationId, mode, team_1_attacker, team_1_defender, team_2_attacker, team_2_defender) VALUES($1, $2, $3, $4, $5, $6, $7`
+	//TODO team players as ID with reference to users
+	stmt := `INSERT INTO matches(date, locationId, best_of, team_1_player_1, team_1_player_2, team_2_player_1, team_2_player_2) VALUES($1, $2, $3, $4, $5, $6, $7)`
 	_, err = tx.Exec(
 		stmt,
 		matchDetails.Date,
 		matchDetails.LocationID,
-		matchDetails.ModeId,
+		matchDetails.BestOf,
 		matchDetails.Team1.Attacker,
 		matchDetails.Team1.Defender,
 		matchDetails.Team2.Attacker,
@@ -89,4 +115,27 @@ func NewRepository() *Repository {
 	}
 	r.db = db
 	return &r
+}
+
+func (r *Repository) WriteGameOfMatch(matchId string, game GameDetails) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Commit()
+	stmt := `INSERT INTO game(match_id, points_team_1, points_team_2, team_1_attacker, team_1_defender, team_2_attacker, team_2_defender) VALUES($1, $2, $3, $4, $5, $6, $7)`
+	_, err = tx.Exec(
+		stmt,
+		matchId,
+		game.ScoreTeam1,
+		game.ScoreTeam2,
+		game.Team1.Attacker,
+		game.Team1.Defender,
+		game.Team2.Attacker,
+		game.Team2.Defender,
+		)
+	if err != nil {
+		return err
+	}
+	return nil
 }
